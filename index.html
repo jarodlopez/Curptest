@@ -15,6 +15,9 @@
     <!-- Tailwind CSS (CDN) para estilos -->
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- Iconos Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
@@ -27,7 +30,7 @@
     <script type="text/babel">
         const { useState } = React;
 
-        // --- CONSTANTES Y CATÁLOGOS ---
+        // --- CONSTANTES ---
         const ENTIDADES = [
             { clave: 'AS', nombre: 'Aguascalientes' }, { clave: 'BC', nombre: 'Baja California' },
             { clave: 'BS', nombre: 'Baja California Sur' }, { clave: 'CC', nombre: 'Campeche' },
@@ -113,7 +116,6 @@
             let d, m, y;
             if (parts.length !== 3) return null;
             
-            // Detectar si es YYYY-MM-DD o DD-MM-YYYY
             if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; } 
             else { d = parts[0]; m = parts[1]; y = parts[2]; }
 
@@ -151,7 +153,7 @@
             } catch (e) { return null; }
         };
 
-        // --- COMPONENTES VISUALES ---
+        // --- UI COMPONENTS ---
         const InputField = ({ label, value, onChange, placeholder, optional, helperText }) => (
             <div className="mb-4">
                 <label className="block text-sm font-semibold text-slate-700 mb-1">
@@ -162,14 +164,15 @@
                     value={value}
                     onChange={(e) => onChange(e.target.value)}
                     placeholder={placeholder}
-                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase placeholder:normal-case"
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase placeholder:normal-case transition-all"
                 />
                 {helperText && <p className="text-xs text-slate-400 mt-1">{helperText}</p>}
             </div>
         );
 
         const App = () => {
-            const [formData, setFormData] = useState({ nombres: "", primerApellido: "", segundoApellido: "", fechaNacimiento: "", sexo: "", entidad: "" });
+            const initialFormState = { nombres: "", primerApellido: "", segundoApellido: "", fechaNacimiento: "", sexo: "", entidad: "" };
+            const [formData, setFormData] = useState(initialFormState);
             const [curpResult, setCurpResult] = useState(null);
             const [error, setError] = useState("");
 
@@ -188,14 +191,38 @@
                 else setError("Fecha inválida o error en datos. Use formato DD/MM/AAAA.");
             };
 
+            const handleReset = () => {
+                setFormData(initialFormState);
+                setCurpResult(null);
+                setError("");
+            };
+
             const copyTo = () => {
-                navigator.clipboard.writeText(curpResult).then(() => alert("Copiado"));
+                const el = document.createElement('textarea');
+                el.value = curpResult;
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
+                alert("CURP copiada al portapapeles.");
             };
 
             return (
                 <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 font-sans">
-                    <div className="bg-white p-8 rounded-xl shadow-lg border border-slate-100">
-                        <h1 className="text-2xl font-bold text-slate-800 mb-6 pb-4 border-b">Generación de Clave</h1>
+                    {/* COLUMNA IZQUIERDA: FORMULARIO */}
+                    <div className="bg-white p-8 rounded-xl shadow-lg border border-slate-100 relative">
+                        <div className="flex justify-between items-start mb-6 pb-4 border-b border-slate-100">
+                            <div>
+                                <h1 className="text-2xl font-bold text-slate-800">Generación de Clave</h1>
+                                <p className="text-slate-500 text-sm mt-1">Ingrese sus datos.</p>
+                            </div>
+                            {/* Botón de limpiar visible en formulario también */}
+                            {(formData.nombres || formData.primerApellido) && (
+                                <button onClick={handleReset} className="text-xs text-slate-400 hover:text-red-500 underline">
+                                    Limpiar
+                                </button>
+                            )}
+                        </div>
                         
                         <InputField label="Nombre(s)" placeholder="Ej. Juan Carlos" value={formData.nombres} onChange={(v) => handleChange("nombres", v)} />
                         <div className="grid grid-cols-2 gap-4">
@@ -206,7 +233,7 @@
                             <InputField label="Fecha de Nacimiento" placeholder="DD/MM/AAAA" helperText="Ej: 25/12/1990" value={formData.fechaNacimiento} onChange={(v) => handleChange("fechaNacimiento", v)} />
                             <div className="mb-4">
                                 <label className="block text-sm font-semibold text-slate-700 mb-1">Sexo</label>
-                                <select className="w-full px-4 py-2 border rounded-md" value={formData.sexo} onChange={(e) => handleChange("sexo", e.target.value)}>
+                                <select className="w-full px-4 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" value={formData.sexo} onChange={(e) => handleChange("sexo", e.target.value)}>
                                     <option value="">Elegir...</option>
                                     <option value="H">Hombre</option>
                                     <option value="M">Mujer</option>
@@ -215,35 +242,72 @@
                         </div>
                         <div className="mb-4">
                             <label className="block text-sm font-semibold text-slate-700 mb-1">Entidad Federativa</label>
-                            <select className="w-full px-4 py-2 border rounded-md" value={formData.entidad} onChange={(e) => handleChange("entidad", e.target.value)}>
+                            <select className="w-full px-4 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" value={formData.entidad} onChange={(e) => handleChange("entidad", e.target.value)}>
                                 <option value="">Seleccione entidad...</option>
                                 {ENTIDADES.map(e => <option key={e.clave} value={e.clave}>{e.nombre}</option>)}
                             </select>
                         </div>
 
-                        {error && <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-md text-sm border border-red-200">{error}</div>}
-                        <button onClick={handleCalculate} className="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Calcular CURP</button>
+                        {error && <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-md text-sm border border-red-200 flex items-center gap-2">⚠️ {error}</div>}
+                        
+                        <button 
+                            onClick={handleCalculate} 
+                            className="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors"
+                        >
+                            Calcular CURP
+                        </button>
                     </div>
 
+                    {/* COLUMNA DERECHA: RESULTADO */}
                     <div className="flex flex-col gap-6">
-                        <div className={`bg-white p-8 rounded-xl shadow-lg border border-slate-100 h-full flex flex-col justify-center items-center ${curpResult ? 'opacity-100' : 'opacity-80'}`}>
+                        <div className={`bg-white p-8 rounded-xl shadow-lg border border-slate-100 h-full flex flex-col justify-center items-center transition-all duration-300 ${curpResult ? 'opacity-100 scale-100' : 'opacity-90'}`}>
                             {!curpResult ? (
-                                <div className="text-center text-slate-400">
-                                    <div className="text-4xl mb-2">⌨️</div>
-                                    <p>Ingrese sus datos para ver el resultado.</p>
+                                <div className="text-center text-slate-400 py-12">
+                                    <div className="text-6xl mb-4 opacity-30">🪪</div>
+                                    <p className="font-medium">Esperando datos...</p>
+                                    <p className="text-sm mt-2 opacity-70">Complete el formulario para ver la estimación.</p>
                                 </div>
                             ) : (
-                                <div className="text-center w-full">
-                                    <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">CURP Estimada</div>
-                                    <div className="text-3xl sm:text-4xl font-mono font-bold text-slate-800 break-all tracking-widest mb-4">
-                                        {curpResult.slice(0,16)}<span className="text-blue-600">{curpResult.slice(16)}</span>
+                                <div className="text-center w-full animate-fade-in-up">
+                                    <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">CURP Estimada</div>
+                                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
+                                        <div className="text-3xl sm:text-4xl font-mono font-bold text-slate-800 break-all tracking-widest">
+                                            {curpResult.slice(0,16)}<span className="text-blue-600">{curpResult.slice(16)}</span>
+                                        </div>
+                                        <div className="text-xs text-slate-400 mt-1 text-right">Dígito verificador en azul</div>
                                     </div>
-                                    <button onClick={copyTo} className="px-4 py-2 border rounded hover:bg-slate-50 text-sm font-medium">Copiar</button>
+                                    
+                                    <div className="flex gap-3 justify-center">
+                                        <button 
+                                            onClick={copyTo} 
+                                            className="flex items-center gap-2 px-6 py-2 bg-white border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 font-medium transition-colors shadow-sm"
+                                        >
+                                            <i data-lucide="copy" className="w-4 h-4"></i>
+                                            Copiar
+                                        </button>
+                                        
+                                        <button 
+                                            onClick={handleReset} 
+                                            className="flex items-center gap-2 px-6 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-md hover:bg-blue-100 font-medium transition-colors shadow-sm"
+                                        >
+                                            <i data-lucide="refresh-cw" className="w-4 h-4"></i>
+                                            Nueva Consulta
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
-                        <div className="bg-slate-200 border-l-4 border-slate-500 p-4 rounded-r-lg text-xs text-slate-600 text-justify leading-relaxed">
-                            Esta CURP es una estimación generada con base en los datos proporcionados. No sustituye una validación oficial ni confirma la existencia del registro ante autoridades gubernamentales.
+
+                        {/* Aviso Legal Fijo */}
+                        <div className="bg-slate-200 border-l-4 border-slate-500 p-4 rounded-r-lg">
+                            <div className="flex items-start gap-3">
+                                <div className="mt-0.5 text-slate-600">ℹ️</div>
+                                <div className="text-xs text-slate-600 text-justify leading-relaxed">
+                                    Esta CURP es una estimación generada con base en los datos proporcionados. 
+                                    No sustituye una validación oficial ni confirma la existencia del registro 
+                                    ante autoridades gubernamentales.
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -252,8 +316,14 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
+        
+        // Inicializar iconos
+        setTimeout(() => {
+            if (window.lucide) window.lucide.createIcons();
+        }, 100);
     </script>
 </body>
 </html>
 
 
+ 
