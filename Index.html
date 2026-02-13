@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador de CURP Estimada</title>
+    
+    <!-- React & ReactDOM (CDN) -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel (CDN) para interpretar JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tailwind CSS (CDN) para estilos -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <div id="root" class="flex-grow flex flex-col items-center justify-center p-4"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        // --- CONSTANTES Y CATÁLOGOS ---
+        const ENTIDADES = [
+            { clave: 'AS', nombre: 'Aguascalientes' }, { clave: 'BC', nombre: 'Baja California' },
+            { clave: 'BS', nombre: 'Baja California Sur' }, { clave: 'CC', nombre: 'Campeche' },
+            { clave: 'CL', nombre: 'Coahuila' }, { clave: 'CM', nombre: 'Colima' },
+            { clave: 'CS', nombre: 'Chiapas' }, { clave: 'CH', nombre: 'Chihuahua' },
+            { clave: 'DF', nombre: 'Ciudad de México' }, { clave: 'DG', nombre: 'Durango' },
+            { clave: 'GT', nombre: 'Guanajuato' }, { clave: 'GR', nombre: 'Guerrero' },
+            { clave: 'HG', nombre: 'Hidalgo' }, { clave: 'JC', nombre: 'Jalisco' },
+            { clave: 'MC', nombre: 'México' }, { clave: 'MN', nombre: 'Michoacán' },
+            { clave: 'MS', nombre: 'Morelos' }, { clave: 'NT', nombre: 'Nayarit' },
+            { clave: 'NL', nombre: 'Nuevo León' }, { clave: 'OC', nombre: 'Oaxaca' },
+            { clave: 'PL', nombre: 'Puebla' }, { clave: 'QT', nombre: 'Querétaro' },
+            { clave: 'QR', nombre: 'Quintana Roo' }, { clave: 'SP', nombre: 'San Luis Potosí' },
+            { clave: 'SL', nombre: 'Sinaloa' }, { clave: 'SR', nombre: 'Sonora' },
+            { clave: 'TC', nombre: 'Tabasco' }, { clave: 'TS', nombre: 'Tamaulipas' },
+            { clave: 'TL', nombre: 'Tlaxcala' }, { clave: 'VZ', nombre: 'Veracruz' },
+            { clave: 'YN', nombre: 'Yucatán' }, { clave: 'ZS', nombre: 'Zacatecas' },
+            { clave: 'NE', nombre: 'Nacido en el Extranjero' }
+        ];
+
+        const PALABRAS_INCONVENIENTES = [
+            "BACA", "BAKA", "BUEI", "BUEY", "CACA", "CACO", "CAGA", "CAGO", "CAKA", "CAKO",
+            "COGE", "COGI", "COJA", "COJE", "COJI", "COJO", "COLA", "CULO", "FALO", "FETO",
+            "GETA", "GUEI", "GUEY", "JETA", "JOTO", "KACA", "KACO", "KAGA", "KAGO", "KAKA",
+            "KAKO", "KOGE", "KOGI", "KOJA", "KOJE", "KOJI", "KOJO", "KOLA", "KULO", "LILO",
+            "LOCA", "LOCO", "LOKA", "LOKO", "MAME", "MAMO", "MEAR", "MEAS", "MEON", "MIAR",
+            "MION", "MOCO", "MOKO", "MULA", "MULO", "NACA", "NACO", "PEDA", "PEDO", "PENE",
+            "PIPI", "PITO", "POPO", "PUTA", "PUTO", "QULO", "RATA", "ROBA", "ROBE", "ROBO",
+            "RUIN", "SENO", "TETA", "VACA", "VAGA", "VAGO", "VAKA", "VUEI", "VUEY", "WEY"
+        ];
+
+        const PREPOSICIONES = [
+            "DA", "DAS", "DE", "DEL", "DER", "DI", "DIE", "DD", "EL", "LA", "LOS", "LAS", 
+            "LE", "LES", "MAC", "MC", "VAN", "VON", "Y"
+        ];
+
+        // --- LÓGICA DE NEGOCIO ---
+        const normalizeText = (text) => {
+            if (!text) return "";
+            return text.toUpperCase().trim()
+                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                .replace(/Ñ/g, "X")
+                .replace(/[^A-Z\s]/g, "");
+        };
+
+        const isVowel = (c) => /[AEIOU]/.test(c);
+        const isConsonant = (c) => /[B-DF-HJ-NP-TV-Z]/.test(c);
+
+        const getFirstVowelInternal = (w) => {
+            for (let i = 1; i < w.length; i++) if (isVowel(w[i])) return w[i];
+            return "X";
+        };
+
+        const getFirstConsonantInternal = (w) => {
+            for (let i = 1; i < w.length; i++) {
+                if (isConsonant(w[i])) return w[i] === 'Ñ' ? 'X' : w[i];
+            }
+            return "X";
+        };
+
+        const cleanNameList = (fullName, isGivenName = false) => {
+            const words = normalizeText(fullName).split(/\s+/).filter(w => !PREPOSICIONES.includes(w));
+            if (isGivenName && words.length > 1) {
+                if (["JOSE", "MARIA", "MA", "MA."].includes(words[0])) return words[1];
+            }
+            return words[0] || "X";
+        };
+
+        const calculateCheckDigit = (curp17) => {
+            const dictionary = "0123456789ABCDEFGHIJKLMNÑOPQRSTUVWXYZ";
+            let sum = 0;
+            for(let i = 0; i < 17; i++) {
+                const val = dictionary.indexOf(curp17[i]);
+                sum += (val === -1 ? 0 : val) * (18 - i);
+            }
+            const digit = 10 - (sum % 10);
+            return digit === 10 ? 0 : digit;
+        };
+
+        const parseDateString = (dateStr) => {
+            if (!dateStr) return null;
+            const parts = dateStr.trim().split(/[\/\-\.\s]+/);
+            let d, m, y;
+            if (parts.length !== 3) return null;
+            
+            // Detectar si es YYYY-MM-DD o DD-MM-YYYY
+            if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; } 
+            else { d = parts[0]; m = parts[1]; y = parts[2]; }
+
+            d = d.padStart(2, '0'); m = m.padStart(2, '0');
+            if (isNaN(parseInt(y)) || isNaN(parseInt(m)) || isNaN(parseInt(d))) return null;
+            if (m < 1 || m > 12 || d < 1 || d > 31 || y.length !== 4) return null;
+            return { year: y, month: m, day: d };
+        };
+
+        const generateCURP = (data) => {
+            try {
+                const pApellido = cleanNameList(data.primerApellido);
+                const sApellido = (!data.segundoApellido || !data.segundoApellido.trim()) ? "X" : cleanNameList(data.segundoApellido);
+                const nombre = cleanNameList(data.nombres, true);
+
+                let char1 = pApellido[0];
+                let char2 = getFirstVowelInternal(pApellido);
+                let char3 = sApellido === "X" ? "X" : sApellido[0];
+                let char4 = nombre[0];
+
+                let preCURP = (char1 + char2 + char3 + char4).toUpperCase();
+                if (PALABRAS_INCONVENIENTES.includes(preCURP)) preCURP = preCURP[0] + "X" + preCURP.substring(2);
+
+                const dateObj = parseDateString(data.fechaNacimiento);
+                if (!dateObj) return null;
+                const { year, month, day } = dateObj;
+
+                const cons1 = getFirstConsonantInternal(pApellido);
+                const cons2 = sApellido === "X" ? "X" : getFirstConsonantInternal(sApellido);
+                const cons3 = getFirstConsonantInternal(nombre);
+                const homoclave = parseInt(year) < 2000 ? "0" : "A";
+
+                const base17 = `${preCURP}${year.substring(2,4)}${month}${day}${data.sexo}${data.entidad}${cons1}${cons2}${cons3}${homoclave}`;
+                return `${base17}${calculateCheckDigit(base17)}`;
+            } catch (e) { return null; }
+        };
+
+        // --- COMPONENTES VISUALES ---
+        const InputField = ({ label, value, onChange, placeholder, optional, helperText }) => (
+            <div className="mb-4">
+                <label className="block text-sm font-semibold text-slate-700 mb-1">
+                    {label} {optional && <span className="text-slate-400 font-normal text-xs">(Opcional)</span>}
+                </label>
+                <input
+                    type="text"
+                    value={value}
+                    onChange={(e) => onChange(e.target.value)}
+                    placeholder={placeholder}
+                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase placeholder:normal-case"
+                />
+                {helperText && <p className="text-xs text-slate-400 mt-1">{helperText}</p>}
+            </div>
+        );
+
+        const App = () => {
+            const [formData, setFormData] = useState({ nombres: "", primerApellido: "", segundoApellido: "", fechaNacimiento: "", sexo: "", entidad: "" });
+            const [curpResult, setCurpResult] = useState(null);
+            const [error, setError] = useState("");
+
+            const handleChange = (f, v) => {
+                setFormData(p => ({ ...p, [f]: v }));
+                setError(""); setCurpResult(null);
+            };
+
+            const handleCalculate = () => {
+                if (!formData.nombres || !formData.primerApellido || !formData.fechaNacimiento || !formData.sexo || !formData.entidad) {
+                    setError("Complete los campos obligatorios.");
+                    return;
+                }
+                const res = generateCURP(formData);
+                if (res) setCurpResult(res);
+                else setError("Fecha inválida o error en datos. Use formato DD/MM/AAAA.");
+            };
+
+            const copyTo = () => {
+                navigator.clipboard.writeText(curpResult).then(() => alert("Copiado"));
+            };
+
+            return (
+                <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 font-sans">
+                    <div className="bg-white p-8 rounded-xl shadow-lg border border-slate-100">
+                        <h1 className="text-2xl font-bold text-slate-800 mb-6 pb-4 border-b">Generación de Clave</h1>
+                        
+                        <InputField label="Nombre(s)" placeholder="Ej. Juan Carlos" value={formData.nombres} onChange={(v) => handleChange("nombres", v)} />
+                        <div className="grid grid-cols-2 gap-4">
+                            <InputField label="Primer Apellido" placeholder="Ej. Pérez" value={formData.primerApellido} onChange={(v) => handleChange("primerApellido", v)} />
+                            <InputField label="Segundo Apellido" placeholder="Ej. López" optional value={formData.segundoApellido} onChange={(v) => handleChange("segundoApellido", v)} />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <InputField label="Fecha de Nacimiento" placeholder="DD/MM/AAAA" helperText="Ej: 25/12/1990" value={formData.fechaNacimiento} onChange={(v) => handleChange("fechaNacimiento", v)} />
+                            <div className="mb-4">
+                                <label className="block text-sm font-semibold text-slate-700 mb-1">Sexo</label>
+                                <select className="w-full px-4 py-2 border rounded-md" value={formData.sexo} onChange={(e) => handleChange("sexo", e.target.value)}>
+                                    <option value="">Elegir...</option>
+                                    <option value="H">Hombre</option>
+                                    <option value="M">Mujer</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="mb-4">
+                            <label className="block text-sm font-semibold text-slate-700 mb-1">Entidad Federativa</label>
+                            <select className="w-full px-4 py-2 border rounded-md" value={formData.entidad} onChange={(e) => handleChange("entidad", e.target.value)}>
+                                <option value="">Seleccione entidad...</option>
+                                {ENTIDADES.map(e => <option key={e.clave} value={e.clave}>{e.nombre}</option>)}
+                            </select>
+                        </div>
+
+                        {error && <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-md text-sm border border-red-200">{error}</div>}
+                        <button onClick={handleCalculate} className="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition-colors">Calcular CURP</button>
+                    </div>
+
+                    <div className="flex flex-col gap-6">
+                        <div className={`bg-white p-8 rounded-xl shadow-lg border border-slate-100 h-full flex flex-col justify-center items-center ${curpResult ? 'opacity-100' : 'opacity-80'}`}>
+                            {!curpResult ? (
+                                <div className="text-center text-slate-400">
+                                    <div className="text-4xl mb-2">⌨️</div>
+                                    <p>Ingrese sus datos para ver el resultado.</p>
+                                </div>
+                            ) : (
+                                <div className="text-center w-full">
+                                    <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">CURP Estimada</div>
+                                    <div className="text-3xl sm:text-4xl font-mono font-bold text-slate-800 break-all tracking-widest mb-4">
+                                        {curpResult.slice(0,16)}<span className="text-blue-600">{curpResult.slice(16)}</span>
+                                    </div>
+                                    <button onClick={copyTo} className="px-4 py-2 border rounded hover:bg-slate-50 text-sm font-medium">Copiar</button>
+                                </div>
+                            )}
+                        </div>
+                        <div className="bg-slate-200 border-l-4 border-slate-500 p-4 rounded-r-lg text-xs text-slate-600 text-justify leading-relaxed">
+                            Esta CURP es una estimación generada con base en los datos proporcionados. No sustituye una validación oficial ni confirma la existencia del registro ante autoridades gubernamentales.
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
+
