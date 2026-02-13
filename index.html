@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Generador de CURP Estimada</title>
+    <title>Motor de Identidad Mexicana (Pre-KYC)</title>
     
     <!-- React & ReactDOM (CDN) -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     
-    <!-- Babel (CDN) para interpretar JSX -->
+    <!-- Babel (CDN) -->
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     
-    <!-- Tailwind CSS (CDN) para estilos -->
+    <!-- Tailwind CSS (CDN) -->
     <script src="https://cdn.tailwindcss.com"></script>
     
     <!-- Iconos Lucide -->
@@ -20,7 +20,14 @@
 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+        
         body { font-family: 'Inter', sans-serif; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Animaciones */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.4s ease-out forwards; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
@@ -28,287 +35,467 @@
     <div id="root" class="flex-grow flex flex-col items-center justify-center p-4"></div>
 
     <script type="text/babel">
-        const { useState } = React;
+        const { useState, useEffect } = React;
 
-        // --- CONSTANTES ---
-        const ENTIDADES = [
-            { clave: 'AS', nombre: 'Aguascalientes' }, { clave: 'BC', nombre: 'Baja California' },
-            { clave: 'BS', nombre: 'Baja California Sur' }, { clave: 'CC', nombre: 'Campeche' },
-            { clave: 'CL', nombre: 'Coahuila' }, { clave: 'CM', nombre: 'Colima' },
-            { clave: 'CS', nombre: 'Chiapas' }, { clave: 'CH', nombre: 'Chihuahua' },
-            { clave: 'DF', nombre: 'Ciudad de México' }, { clave: 'DG', nombre: 'Durango' },
-            { clave: 'GT', nombre: 'Guanajuato' }, { clave: 'GR', nombre: 'Guerrero' },
-            { clave: 'HG', nombre: 'Hidalgo' }, { clave: 'JC', nombre: 'Jalisco' },
-            { clave: 'MC', nombre: 'México' }, { clave: 'MN', nombre: 'Michoacán' },
-            { clave: 'MS', nombre: 'Morelos' }, { clave: 'NT', nombre: 'Nayarit' },
-            { clave: 'NL', nombre: 'Nuevo León' }, { clave: 'OC', nombre: 'Oaxaca' },
-            { clave: 'PL', nombre: 'Puebla' }, { clave: 'QT', nombre: 'Querétaro' },
-            { clave: 'QR', nombre: 'Quintana Roo' }, { clave: 'SP', nombre: 'San Luis Potosí' },
-            { clave: 'SL', nombre: 'Sinaloa' }, { clave: 'SR', nombre: 'Sonora' },
-            { clave: 'TC', nombre: 'Tabasco' }, { clave: 'TS', nombre: 'Tamaulipas' },
-            { clave: 'TL', nombre: 'Tlaxcala' }, { clave: 'VZ', nombre: 'Veracruz' },
-            { clave: 'YN', nombre: 'Yucatán' }, { clave: 'ZS', nombre: 'Zacatecas' },
-            { clave: 'NE', nombre: 'Nacido en el Extranjero' }
-        ];
+        // ==========================================
+        //        MOTOR DE CÁLCULO (LOGIC)
+        // ==========================================
 
-        const PALABRAS_INCONVENIENTES = [
-            "BACA", "BAKA", "BUEI", "BUEY", "CACA", "CACO", "CAGA", "CAGO", "CAKA", "CAKO",
-            "COGE", "COGI", "COJA", "COJE", "COJI", "COJO", "COLA", "CULO", "FALO", "FETO",
-            "GETA", "GUEI", "GUEY", "JETA", "JOTO", "KACA", "KACO", "KAGA", "KAGO", "KAKA",
-            "KAKO", "KOGE", "KOGI", "KOJA", "KOJE", "KOJI", "KOJO", "KOLA", "KULO", "LILO",
-            "LOCA", "LOCO", "LOKA", "LOKO", "MAME", "MAMO", "MEAR", "MEAS", "MEON", "MIAR",
-            "MION", "MOCO", "MOKO", "MULA", "MULO", "NACA", "NACO", "PEDA", "PEDO", "PENE",
-            "PIPI", "PITO", "POPO", "PUTA", "PUTO", "QULO", "RATA", "ROBA", "ROBE", "ROBO",
-            "RUIN", "SENO", "TETA", "VACA", "VAGA", "VAGO", "VAKA", "VUEI", "VUEY", "WEY"
-        ];
-
-        const PREPOSICIONES = [
-            "DA", "DAS", "DE", "DEL", "DER", "DI", "DIE", "DD", "EL", "LA", "LOS", "LAS", 
-            "LE", "LES", "MAC", "MC", "VAN", "VON", "Y"
-        ];
-
-        // --- LÓGICA DE NEGOCIO ---
-        const normalizeText = (text) => {
-            if (!text) return "";
-            return text.toUpperCase().trim()
-                .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                .replace(/Ñ/g, "X")
-                .replace(/[^A-Z\s]/g, "");
+        const CATALOGOS = {
+            ENTIDADES: [
+                { clave: 'AS', nombre: 'Aguascalientes' }, { clave: 'BC', nombre: 'Baja California' },
+                { clave: 'BS', nombre: 'Baja California Sur' }, { clave: 'CC', nombre: 'Campeche' },
+                { clave: 'CL', nombre: 'Coahuila' }, { clave: 'CM', nombre: 'Colima' },
+                { clave: 'CS', nombre: 'Chiapas' }, { clave: 'CH', nombre: 'Chihuahua' },
+                { clave: 'DF', nombre: 'Ciudad de México' }, { clave: 'DG', nombre: 'Durango' },
+                { clave: 'GT', nombre: 'Guanajuato' }, { clave: 'GR', nombre: 'Guerrero' },
+                { clave: 'HG', nombre: 'Hidalgo' }, { clave: 'JC', nombre: 'Jalisco' },
+                { clave: 'MC', nombre: 'México' }, { clave: 'MN', nombre: 'Michoacán' },
+                { clave: 'MS', nombre: 'Morelos' }, { clave: 'NT', nombre: 'Nayarit' },
+                { clave: 'NL', nombre: 'Nuevo León' }, { clave: 'OC', nombre: 'Oaxaca' },
+                { clave: 'PL', nombre: 'Puebla' }, { clave: 'QT', nombre: 'Querétaro' },
+                { clave: 'QR', nombre: 'Quintana Roo' }, { clave: 'SP', nombre: 'San Luis Potosí' },
+                { clave: 'SL', nombre: 'Sinaloa' }, { clave: 'SR', nombre: 'Sonora' },
+                { clave: 'TC', nombre: 'Tabasco' }, { clave: 'TS', nombre: 'Tamaulipas' },
+                { clave: 'TL', nombre: 'Tlaxcala' }, { clave: 'VZ', nombre: 'Veracruz' },
+                { clave: 'YN', nombre: 'Yucatán' }, { clave: 'ZS', nombre: 'Zacatecas' },
+                { clave: 'NE', nombre: 'Nacido en el Extranjero' }
+            ],
+            PALABRAS_INCONVENIENTES: new Set([
+                "BACA", "BAKA", "BUEI", "BUEY", "CACA", "CACO", "CAGA", "CAGO", "CAKA", "CAKO",
+                "COGE", "COGI", "COJA", "COJE", "COJI", "COJO", "COLA", "CULO", "FALO", "FETO",
+                "GETA", "GUEI", "GUEY", "JETA", "JOTO", "KACA", "KACO", "KAGA", "KAGO", "KAKA",
+                "KAKO", "KOGE", "KOGI", "KOJA", "KOJE", "KOJI", "KOJO", "KOLA", "KULO", "LILO",
+                "LOCA", "LOCO", "LOKA", "LOKO", "MAME", "MAMO", "MEAR", "MEAS", "MEON", "MIAR",
+                "MION", "MOCO", "MOKO", "MULA", "MULO", "NACA", "NACO", "PEDA", "PEDO", "PENE",
+                "PIPI", "PITO", "POPO", "PUTA", "PUTO", "QULO", "RATA", "ROBA", "ROBE", "ROBO",
+                "RUIN", "SENO", "TETA", "VACA", "VAGA", "VAGO", "VAKA", "VUEI", "VUEY", "WEY"
+            ]),
+            PREPOSICIONES: new Set([
+                "DA", "DAS", "DE", "DEL", "DER", "DI", "DIE", "DD", "EL", "LA", "LOS", "LAS", 
+                "LE", "LES", "MAC", "MC", "VAN", "VON", "Y"
+            ]),
+            NOMBRES_COMUNES: new Set(["JOSE", "MARIA", "MA", "MA."])
         };
 
-        const isVowel = (c) => /[AEIOU]/.test(c);
-        const isConsonant = (c) => /[B-DF-HJ-NP-TV-Z]/.test(c);
+        const Engine = {
+            normalize: (text) => {
+                if (!text) return "";
+                return text.toUpperCase().trim()
+                    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+                    .replace(/Ñ/g, "X")
+                    .replace(/[^A-Z\s]/g, "");
+            },
 
-        const getFirstVowelInternal = (w) => {
-            for (let i = 1; i < w.length; i++) if (isVowel(w[i])) return w[i];
-            return "X";
-        };
+            cleanNameList: (fullName, isGivenName = false) => {
+                const words = Engine.normalize(fullName).split(/\s+/).filter(w => !CATALOGOS.PREPOSICIONES.has(w));
+                if (isGivenName && words.length > 1) {
+                    if (CATALOGOS.NOMBRES_COMUNES.has(words[0])) return words.slice(1);
+                }
+                return words.length > 0 ? words : ["X"];
+            },
 
-        const getFirstConsonantInternal = (w) => {
-            for (let i = 1; i < w.length; i++) {
-                if (isConsonant(w[i])) return w[i] === 'Ñ' ? 'X' : w[i];
+            isVowel: (c) => /[AEIOU]/.test(c),
+            isConsonant: (c) => /[B-DF-HJ-NP-TV-Z]/.test(c),
+
+            getFirstVowelInternal: (w) => {
+                for (let i = 1; i < w.length; i++) if (Engine.isVowel(w[i])) return w[i];
+                return "X";
+            },
+
+            getFirstConsonantInternal: (w) => {
+                for (let i = 1; i < w.length; i++) {
+                    if (Engine.isConsonant(w[i])) return w[i] === 'Ñ' ? 'X' : w[i];
+                }
+                return "X";
+            },
+
+            generateRoot4: (nombres, paterno, materno) => {
+                const pWords = Engine.cleanNameList(paterno);
+                const mWords = materno ? Engine.cleanNameList(materno) : ["X"];
+                const nWords = Engine.cleanNameList(nombres, true);
+
+                const pApellido = pWords[0];
+                const sApellido = mWords[0];
+                const nombre = nWords[0];
+
+                let root = (
+                    pApellido[0] + 
+                    Engine.getFirstVowelInternal(pApellido) + 
+                    (sApellido === "X" ? "X" : sApellido[0]) + 
+                    nombre[0]
+                );
+
+                if (CATALOGOS.PALABRAS_INCONVENIENTES.has(root)) {
+                    root = root[0] + "X" + root.substring(2);
+                }
+                return root;
+            },
+
+            calculateCheckDigit: (curp17) => {
+                const dictionary = "0123456789ABCDEFGHIJKLMNÑOPQRSTUVWXYZ";
+                let sum = 0;
+                for(let i = 0; i < 17; i++) {
+                    const val = dictionary.indexOf(curp17[i]);
+                    sum += (val === -1 ? 0 : val) * (18 - i);
+                }
+                const digit = 10 - (sum % 10);
+                return digit === 10 ? 0 : digit;
+            },
+
+            parseDate: (dateStr) => {
+                if (!dateStr) return null;
+                const parts = dateStr.trim().split(/[\/\-\.\s]+/);
+                let d, m, y;
+                if (parts.length !== 3) return null;
+                if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; } 
+                else { d = parts[0]; m = parts[1]; y = parts[2]; }
+                
+                d = d.padStart(2, '0'); m = m.padStart(2, '0');
+                if (isNaN(parseInt(y)) || isNaN(parseInt(m)) || isNaN(parseInt(d))) return null;
+                if (m < 1 || m > 12 || d < 1 || d > 31 || y.length !== 4) return null;
+                return { year: y, month: m, day: d };
+            },
+
+            process: (input) => {
+                try {
+                    const dateObj = Engine.parseDate(input.fechaNacimiento);
+                    if (!dateObj) throw new Error("Fecha inválida");
+                    const { year, month, day } = dateObj;
+                    const yearShort = year.substring(2, 4);
+
+                    // --- GENERAR RAÍZ ---
+                    const root4 = Engine.generateRoot4(input.nombres, input.primerApellido, input.segundoApellido);
+
+                    // --- CURP ---
+                    const pWords = Engine.cleanNameList(input.primerApellido);
+                    const mWords = input.segundoApellido ? Engine.cleanNameList(input.segundoApellido) : ["X"];
+                    const nWords = Engine.cleanNameList(input.nombres, true);
+
+                    const cons1 = Engine.getFirstConsonantInternal(pWords[0]);
+                    const cons2 = mWords[0] === "X" ? "X" : Engine.getFirstConsonantInternal(mWords[0]);
+                    const cons3 = Engine.getFirstConsonantInternal(nWords[0]);
+                    const homoclaveSiglo = parseInt(year) < 2000 ? "0" : "A";
+
+                    const curpBase17 = `${root4}${yearShort}${month}${day}${input.sexo}${input.entidad}${cons1}${cons2}${cons3}${homoclaveSiglo}`;
+                    const curpDigit = Engine.calculateCheckDigit(curpBase17);
+                    const curpCalculada = `${curpBase17}${curpDigit}`;
+
+                    // --- RFC ESTIMADO ---
+                    const rfcBase = `${root4}${yearShort}${month}${day}`;
+                    const rfcEstimado = `${rfcBase}XXX`;
+
+                    // --- VALIDACIÓN CRUZADA Y SCORE ---
+                    let score = 1.0;
+                    const flags = ["VALIDACION_ESTIMADA", "HOMOCLAVE_NO_DEDUCIBLE"];
+                    let coincideCurp = null;
+                    let coincideRfc = null;
+
+                    if (input.curpIngresado) {
+                        if (Engine.normalize(input.curpIngresado) === curpCalculada) {
+                            coincideCurp = true;
+                        } else {
+                            coincideCurp = false;
+                            score -= 0.4;
+                            flags.push("CURP_INCONSISTENTE");
+                        }
+                    }
+
+                    if (input.rfcIngresado) {
+                        const rfcInputNorm = Engine.normalize(input.rfcIngresado);
+                        if (rfcInputNorm.substring(0, 10) === rfcBase) {
+                            coincideRfc = true;
+                        } else {
+                            coincideRfc = false;
+                            score -= 0.3;
+                            flags.push("RFC_INCONSISTENTE");
+                        }
+                    }
+
+                    if (input.curpIngresado) {
+                        const curpDate = Engine.normalize(input.curpIngresado).substring(4, 10);
+                        if (curpDate !== `${yearShort}${month}${day}` && !flags.includes("CURP_INCONSISTENTE")) {
+                            flags.push("FECHA_CURP_MISMATCH");
+                            score -= 0.2;
+                        }
+                    }
+
+                    return {
+                        curp: curpCalculada,
+                        rfc: rfcEstimado,
+                        score: Math.max(0, parseFloat(score.toFixed(2))),
+                        flags,
+                        coincideCurp,
+                        coincideRfc
+                    };
+
+                } catch (e) {
+                    return null;
+                }
             }
-            return "X";
         };
 
-        const cleanNameList = (fullName, isGivenName = false) => {
-            const words = normalizeText(fullName).split(/\s+/).filter(w => !PREPOSICIONES.includes(w));
-            if (isGivenName && words.length > 1) {
-                if (["JOSE", "MARIA", "MA", "MA."].includes(words[0])) return words[1];
-            }
-            return words[0] || "X";
-        };
+        // ==========================================
+        //        COMPONENTES UI
+        // ==========================================
 
-        const calculateCheckDigit = (curp17) => {
-            const dictionary = "0123456789ABCDEFGHIJKLMNÑOPQRSTUVWXYZ";
-            let sum = 0;
-            for(let i = 0; i < 17; i++) {
-                const val = dictionary.indexOf(curp17[i]);
-                sum += (val === -1 ? 0 : val) * (18 - i);
-            }
-            const digit = 10 - (sum % 10);
-            return digit === 10 ? 0 : digit;
-        };
-
-        const parseDateString = (dateStr) => {
-            if (!dateStr) return null;
-            const parts = dateStr.trim().split(/[\/\-\.\s]+/);
-            let d, m, y;
-            if (parts.length !== 3) return null;
-            
-            if (parts[0].length === 4) { y = parts[0]; m = parts[1]; d = parts[2]; } 
-            else { d = parts[0]; m = parts[1]; y = parts[2]; }
-
-            d = d.padStart(2, '0'); m = m.padStart(2, '0');
-            if (isNaN(parseInt(y)) || isNaN(parseInt(m)) || isNaN(parseInt(d))) return null;
-            if (m < 1 || m > 12 || d < 1 || d > 31 || y.length !== 4) return null;
-            return { year: y, month: m, day: d };
-        };
-
-        const generateCURP = (data) => {
-            try {
-                const pApellido = cleanNameList(data.primerApellido);
-                const sApellido = (!data.segundoApellido || !data.segundoApellido.trim()) ? "X" : cleanNameList(data.segundoApellido);
-                const nombre = cleanNameList(data.nombres, true);
-
-                let char1 = pApellido[0];
-                let char2 = getFirstVowelInternal(pApellido);
-                let char3 = sApellido === "X" ? "X" : sApellido[0];
-                let char4 = nombre[0];
-
-                let preCURP = (char1 + char2 + char3 + char4).toUpperCase();
-                if (PALABRAS_INCONVENIENTES.includes(preCURP)) preCURP = preCURP[0] + "X" + preCURP.substring(2);
-
-                const dateObj = parseDateString(data.fechaNacimiento);
-                if (!dateObj) return null;
-                const { year, month, day } = dateObj;
-
-                const cons1 = getFirstConsonantInternal(pApellido);
-                const cons2 = sApellido === "X" ? "X" : getFirstConsonantInternal(sApellido);
-                const cons3 = getFirstConsonantInternal(nombre);
-                const homoclave = parseInt(year) < 2000 ? "0" : "A";
-
-                const base17 = `${preCURP}${year.substring(2,4)}${month}${day}${data.sexo}${data.entidad}${cons1}${cons2}${cons3}${homoclave}`;
-                return `${base17}${calculateCheckDigit(base17)}`;
-            } catch (e) { return null; }
-        };
-
-        // --- UI COMPONENTS ---
-        const InputField = ({ label, value, onChange, placeholder, optional, helperText }) => (
+        const InputField = ({ label, value, onChange, placeholder, optional, helperText, icon }) => (
             <div className="mb-4">
-                <label className="block text-sm font-semibold text-slate-700 mb-1">
-                    {label} {optional && <span className="text-slate-400 font-normal text-xs">(Opcional)</span>}
+                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    {label} {optional && <span className="text-slate-400 font-normal normal-case">(Opcional)</span>}
                 </label>
-                <input
-                    type="text"
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                    placeholder={placeholder}
-                    className="w-full px-4 py-2 bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase placeholder:normal-case transition-all"
-                />
+                <div className="relative">
+                    <input
+                        type="text"
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        placeholder={placeholder}
+                        className={`w-full px-4 py-2 pl-${icon ? '10' : '4'} bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase placeholder:normal-case transition-all text-sm`}
+                    />
+                    {icon && (
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i data-lucide={icon} className="h-4 w-4 text-slate-400"></i>
+                        </div>
+                    )}
+                </div>
                 {helperText && <p className="text-xs text-slate-400 mt-1">{helperText}</p>}
             </div>
         );
 
+        const Badge = ({ type, text }) => {
+            const colors = {
+                green: 'bg-green-100 text-green-800 border-green-200',
+                red: 'bg-red-100 text-red-800 border-red-200',
+                gray: 'bg-slate-100 text-slate-600 border-slate-200',
+                blue: 'bg-blue-100 text-blue-800 border-blue-200',
+                yellow: 'bg-yellow-100 text-yellow-800 border-yellow-200'
+            };
+            return (
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${colors[type] || colors.gray}`}>
+                    {text}
+                </span>
+            );
+        };
+
         const App = () => {
-            const initialFormState = { nombres: "", primerApellido: "", segundoApellido: "", fechaNacimiento: "", sexo: "", entidad: "" };
-            const [formData, setFormData] = useState(initialFormState);
-            const [curpResult, setCurpResult] = useState(null);
+            const initialForm = { 
+                nombres: "", primerApellido: "", segundoApellido: "", 
+                fechaNacimiento: "", sexo: "", entidad: "",
+                curpIngresado: "", rfcIngresado: ""
+            };
+            
+            const [formData, setFormData] = useState(initialForm);
+            const [result, setResult] = useState(null);
             const [error, setError] = useState("");
 
             const handleChange = (f, v) => {
                 setFormData(p => ({ ...p, [f]: v }));
-                setError(""); setCurpResult(null);
+                setError(""); setResult(null);
             };
 
             const handleCalculate = () => {
                 if (!formData.nombres || !formData.primerApellido || !formData.fechaNacimiento || !formData.sexo || !formData.entidad) {
-                    setError("Complete los campos obligatorios.");
+                    setError("Complete los campos obligatorios marcados (*).");
                     return;
                 }
-                const res = generateCURP(formData);
-                if (res) setCurpResult(res);
-                else setError("Fecha inválida o error en datos. Use formato DD/MM/AAAA.");
+                const res = Engine.process(formData);
+                if (res) setResult(res);
+                else setError("Error en los datos. Verifique formato de fecha (DD/MM/AAAA).");
             };
 
             const handleReset = () => {
-                setFormData(initialFormState);
-                setCurpResult(null);
+                setFormData(initialForm);
+                setResult(null);
                 setError("");
             };
 
-            const copyTo = () => {
+            const copyTo = (text) => {
                 const el = document.createElement('textarea');
-                el.value = curpResult;
+                el.value = text;
                 document.body.appendChild(el);
                 el.select();
                 document.execCommand('copy');
                 document.body.removeChild(el);
-                alert("CURP copiada al portapapeles.");
             };
 
+            // Efecto para inicializar iconos al cargar o cambiar estado
+            useEffect(() => {
+                if (window.lucide) window.lucide.createIcons();
+            });
+
             return (
-                <div className="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 gap-8 font-sans">
-                    {/* COLUMNA IZQUIERDA: FORMULARIO */}
-                    <div className="bg-white p-8 rounded-xl shadow-lg border border-slate-100 relative">
-                        <div className="flex justify-between items-start mb-6 pb-4 border-b border-slate-100">
+                <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-6 font-sans">
+                    
+                    {/* PANEL IZQUIERDO: INPUTS (5 COLUMNAS) */}
+                    <div className="lg:col-span-5 bg-white p-6 rounded-xl shadow-lg border border-slate-200 flex flex-col h-fit">
+                        <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
                             <div>
-                                <h1 className="text-2xl font-bold text-slate-800">Generación de Clave</h1>
-                                <p className="text-slate-500 text-sm mt-1">Ingrese sus datos.</p>
+                                <h1 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                    <i data-lucide="scan-face" className="w-5 h-5 text-blue-600"></i>
+                                    Motor de Identidad
+                                </h1>
+                                <p className="text-xs text-slate-500 mt-1">Cálculo Determinístico & Pre-KYC</p>
                             </div>
-                            {/* Botón de limpiar visible en formulario también */}
-                            {(formData.nombres || formData.primerApellido) && (
-                                <button onClick={handleReset} className="text-xs text-slate-400 hover:text-red-500 underline">
-                                    Limpiar
+                            {result && (
+                                <button onClick={handleReset} className="text-xs text-slate-400 hover:text-red-500 underline flex items-center gap-1">
+                                    <i data-lucide="rotate-ccw" className="w-3 h-3"></i> Limpiar
                                 </button>
                             )}
                         </div>
-                        
-                        <InputField label="Nombre(s)" placeholder="Ej. Juan Carlos" value={formData.nombres} onChange={(v) => handleChange("nombres", v)} />
-                        <div className="grid grid-cols-2 gap-4">
-                            <InputField label="Primer Apellido" placeholder="Ej. Pérez" value={formData.primerApellido} onChange={(v) => handleChange("primerApellido", v)} />
-                            <InputField label="Segundo Apellido" placeholder="Ej. López" optional value={formData.segundoApellido} onChange={(v) => handleChange("segundoApellido", v)} />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <InputField label="Fecha de Nacimiento" placeholder="DD/MM/AAAA" helperText="Ej: 25/12/1990" value={formData.fechaNacimiento} onChange={(v) => handleChange("fechaNacimiento", v)} />
-                            <div className="mb-4">
-                                <label className="block text-sm font-semibold text-slate-700 mb-1">Sexo</label>
-                                <select className="w-full px-4 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" value={formData.sexo} onChange={(e) => handleChange("sexo", e.target.value)}>
-                                    <option value="">Elegir...</option>
-                                    <option value="H">Hombre</option>
-                                    <option value="M">Mujer</option>
-                                </select>
+
+                        <div className="space-y-1">
+                            <InputField label="Nombre(s) *" icon="user" value={formData.nombres} onChange={(v) => handleChange("nombres", v)} />
+                            <div className="grid grid-cols-2 gap-3">
+                                <InputField label="Paterno *" value={formData.primerApellido} onChange={(v) => handleChange("primerApellido", v)} />
+                                <InputField label="Materno" optional value={formData.segundoApellido} onChange={(v) => handleChange("segundoApellido", v)} />
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-3">
+                                <InputField label="Fecha Nac. *" icon="calendar" placeholder="DD/MM/AAAA" value={formData.fechaNacimiento} onChange={(v) => handleChange("fechaNacimiento", v)} />
+                                <div className="mb-4">
+                                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Sexo *</label>
+                                    <div className="relative">
+                                        <select className="w-full px-4 py-2 pl-10 bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none" value={formData.sexo} onChange={(e) => handleChange("sexo", e.target.value)}>
+                                            <option value="">Seleccionar...</option>
+                                            <option value="H">Hombre</option>
+                                            <option value="M">Mujer</option>
+                                        </select>
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <i data-lucide="users" className="h-4 w-4 text-slate-400"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mb-6">
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Entidad Federativa *</label>
+                                <div className="relative">
+                                    <select className="w-full px-4 py-2 pl-10 bg-white border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm appearance-none" value={formData.entidad} onChange={(e) => handleChange("entidad", e.target.value)}>
+                                        <option value="">Seleccionar entidad...</option>
+                                        {CATALOGOS.ENTIDADES.map(e => <option key={e.clave} value={e.clave}>{e.nombre}</option>)}
+                                    </select>
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <i data-lucide="map-pin" className="h-4 w-4 text-slate-400"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="pt-4 border-t border-slate-100">
+                                <p className="text-xs font-semibold text-slate-400 mb-3 uppercase tracking-wider">Validación Cruzada (Opcional)</p>
+                                <div className="grid grid-cols-1 gap-3">
+                                    <InputField label="CURP Existente" icon="file-text" optional placeholder="Para comparar" value={formData.curpIngresado} onChange={(v) => handleChange("curpIngresado", v)} />
+                                    <InputField label="RFC Existente" icon="hash" optional placeholder="Para comparar" value={formData.rfcIngresado} onChange={(v) => handleChange("rfcIngresado", v)} />
+                                </div>
                             </div>
                         </div>
-                        <div className="mb-4">
-                            <label className="block text-sm font-semibold text-slate-700 mb-1">Entidad Federativa</label>
-                            <select className="w-full px-4 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" value={formData.entidad} onChange={(e) => handleChange("entidad", e.target.value)}>
-                                <option value="">Seleccione entidad...</option>
-                                {ENTIDADES.map(e => <option key={e.clave} value={e.clave}>{e.nombre}</option>)}
-                            </select>
-                        </div>
 
-                        {error && <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-md text-sm border border-red-200 flex items-center gap-2">⚠️ {error}</div>}
+                        {error && (
+                            <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-md text-xs border border-red-200 flex items-center gap-2 animate-pulse">
+                                <i data-lucide="alert-circle" className="w-4 h-4"></i> {error}
+                            </div>
+                        )}
                         
                         <button 
                             onClick={handleCalculate} 
-                            className="mt-6 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-colors"
+                            className="mt-6 w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3 px-4 rounded-lg shadow-md transition-all flex justify-center items-center gap-2 text-sm"
                         >
-                            Calcular CURP
+                            <i data-lucide="cpu" className="w-4 h-4"></i> Ejecutar Motor
                         </button>
                     </div>
 
-                    {/* COLUMNA DERECHA: RESULTADO */}
-                    <div className="flex flex-col gap-6">
-                        <div className={`bg-white p-8 rounded-xl shadow-lg border border-slate-100 h-full flex flex-col justify-center items-center transition-all duration-300 ${curpResult ? 'opacity-100 scale-100' : 'opacity-90'}`}>
-                            {!curpResult ? (
-                                <div className="text-center text-slate-400 py-12">
-                                    <div className="text-6xl mb-4 opacity-30">🪪</div>
-                                    <p className="font-medium">Esperando datos...</p>
-                                    <p className="text-sm mt-2 opacity-70">Complete el formulario para ver la estimación.</p>
+                    {/* PANEL DERECHO: RESULTADOS (7 COLUMNAS) */}
+                    <div className="lg:col-span-7 flex flex-col gap-4">
+                        
+                        {/* TARJETA PRINCIPAL */}
+                        <div className={`bg-white p-6 rounded-xl shadow-lg border border-slate-200 flex-grow flex flex-col justify-center transition-all duration-500 relative overflow-hidden ${result ? 'opacity-100' : 'opacity-90'}`}>
+                            
+                            {!result ? (
+                                <div className="text-center text-slate-300 py-12">
+                                    <i data-lucide="server" className="w-20 h-20 mx-auto mb-4 opacity-20"></i>
+                                    <p className="font-medium text-slate-400">Esperando ejecución...</p>
+                                    <p className="text-xs mt-2 opacity-60 max-w-xs mx-auto">Ingrese los datos demográficos para calcular las claves de identidad.</p>
                                 </div>
                             ) : (
-                                <div className="text-center w-full animate-fade-in-up">
-                                    <div className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">CURP Estimada</div>
-                                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6">
-                                        <div className="text-3xl sm:text-4xl font-mono font-bold text-slate-800 break-all tracking-widest">
-                                            {curpResult.slice(0,16)}<span className="text-blue-600">{curpResult.slice(16)}</span>
+                                <div className="animate-fade-in w-full h-full flex flex-col">
+                                    
+                                    {/* HEADER RESULTADOS */}
+                                    <div className="flex justify-between items-start mb-6 border-b border-slate-100 pb-4">
+                                        <div>
+                                            <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Score de Consistencia</div>
+                                            <div className="text-4xl font-bold text-slate-800 mt-1 flex items-baseline gap-2">
+                                                {Math.round(result.score * 100)}%
+                                                <span className={`text-sm font-medium px-2 py-0.5 rounded-full ${result.score >= 0.8 ? 'bg-green-100 text-green-700' : result.score >= 0.5 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {result.score >= 0.8 ? 'ALTA' : result.score >= 0.5 ? 'MEDIA' : 'BAJA'}
+                                                </span>
+                                            </div>
                                         </div>
-                                        <div className="text-xs text-slate-400 mt-1 text-right">Dígito verificador en azul</div>
+                                        <div className="text-right">
+                                            <div className="flex flex-wrap gap-1 justify-end max-w-[200px]">
+                                                {result.flags.map(flag => (
+                                                    <Badge key={flag} type={flag.includes('INCONSISTENTE') ? 'red' : 'gray'} text={flag.replace(/_/g, ' ')} />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* SECCIÓN CURP */}
+                                    <div className="mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200 relative group">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-xs font-bold text-slate-500 uppercase">CURP Calculada</span>
+                                            {result.coincideCurp !== null && (
+                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${result.coincideCurp ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {result.coincideCurp ? 'COINCIDE' : 'DIFIERE'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="text-2xl sm:text-3xl font-mono font-bold text-slate-800 break-all tracking-widest">
+                                            {result.curp.slice(0,16)}<span className="text-blue-600">{result.curp.slice(16)}</span>
+                                        </div>
+                                        <button onClick={() => copyTo(result.curp)} className="absolute top-4 right-4 text-slate-300 hover:text-blue-600 transition-colors">
+                                            <i data-lucide="copy" className="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+
+                                    {/* SECCIÓN RFC */}
+                                    <div className="mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200 border-dashed relative group">
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                                                RFC Estimado <i data-lucide="info" className="w-3 h-3 text-slate-400"></i>
+                                            </span>
+                                            {result.coincideRfc !== null && (
+                                                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${result.coincideRfc ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {result.coincideRfc ? 'BASE COINCIDE' : 'BASE DIFIERE'}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="text-2xl sm:text-3xl font-mono font-bold text-slate-700 break-all tracking-widest">
+                                            {result.rfc.slice(0,10)}<span className="text-slate-400">XXX</span>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 mt-2">
+                                            * Homoclave no deducible algorítmicamente. Se usa "XXX" como placeholder genérico.
+                                        </p>
+                                        <button onClick={() => copyTo(result.rfc)} className="absolute top-4 right-4 text-slate-300 hover:text-blue-600 transition-colors">
+                                            <i data-lucide="copy" className="w-4 h-4"></i>
+                                        </button>
                                     </div>
                                     
-                                    <div className="flex gap-3 justify-center">
-                                        <button 
-                                            onClick={copyTo} 
-                                            className="flex items-center gap-2 px-6 py-2 bg-white border border-slate-300 text-slate-700 rounded-md hover:bg-slate-50 font-medium transition-colors shadow-sm"
-                                        >
-                                            <i data-lucide="copy" className="w-4 h-4"></i>
-                                            Copiar
-                                        </button>
-                                        
-                                        <button 
-                                            onClick={handleReset} 
-                                            className="flex items-center gap-2 px-6 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-md hover:bg-blue-100 font-medium transition-colors shadow-sm"
-                                        >
-                                            <i data-lucide="refresh-cw" className="w-4 h-4"></i>
-                                            Nueva Consulta
-                                        </button>
-                                    </div>
                                 </div>
                             )}
                         </div>
 
-                        {/* Aviso Legal Fijo */}
-                        <div className="bg-slate-200 border-l-4 border-slate-500 p-4 rounded-r-lg">
-                            <div className="flex items-start gap-3">
-                                <div className="mt-0.5 text-slate-600">ℹ️</div>
-                                <div className="text-xs text-slate-600 text-justify leading-relaxed">
-                                    Esta CURP es una estimación generada con base en los datos proporcionados. 
-                                    No sustituye una validación oficial ni confirma la existencia del registro 
-                                    ante autoridades gubernamentales.
-                                </div>
+                        {/* INFO LEGAL */}
+                        <div className="bg-slate-100 p-4 rounded-lg border border-slate-200 text-[10px] text-slate-500 flex gap-3">
+                            <i data-lucide="shield-alert" className="w-5 h-5 text-slate-400 flex-shrink-0"></i>
+                            <div>
+                                <p className="font-bold mb-1">Aviso de Privacidad y Uso</p>
+                                <p className="leading-relaxed text-justify">
+                                    Herramienta de estimación determinística para propósitos de pre-validación financiera (Pre-KYC). 
+                                    Los resultados son aproximaciones algorítmicas basadas en las reglas de RENAPO y SAT. 
+                                    No constituye una consulta a bases de datos gubernamentales ni garantiza la existencia legal de la persona.
+                                </p>
                             </div>
                         </div>
+
                     </div>
                 </div>
             );
@@ -316,11 +503,6 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-        
-        // Inicializar iconos
-        setTimeout(() => {
-            if (window.lucide) window.lucide.createIcons();
-        }, 100);
     </script>
 </body>
 </html>
