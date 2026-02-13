@@ -95,12 +95,25 @@
         };
 
         const Engine = {
+            // CORRECCIÓN CRÍTICA: Normalización
+            // 1. Convertimos a Mayúsculas.
+            // 2. IMPORTANTE: Reemplazamos Ñ por X ANTES de quitar acentos (NFD).
+            //    Si hacemos NFD primero, la Ñ se separa en N + ~ y al quitar diacríticos queda N.
+            //    Al hacerlo antes, MUÑOZ -> MUXOZ, conservando la consonante correcta para RENAPO.
             normalize: (text) => {
                 if (!text) return "";
-                return text.toUpperCase().trim()
-                    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-                    .replace(/Ñ/g, "X")
-                    .replace(/[^A-Z\s]/g, "");
+                let res = text.toUpperCase().trim();
+                
+                // Paso 1: Manejo explícito de Ñ para RENAPO
+                res = res.replace(/Ñ/g, "X");
+                
+                // Paso 2: Eliminación de acentos estándar
+                res = res.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                
+                // Paso 3: Limpieza de caracteres no alfabéticos
+                res = res.replace(/[^A-Z\s]/g, "");
+                
+                return res;
             },
 
             cleanNameList: (fullName, isGivenName = false) => {
@@ -121,7 +134,7 @@
 
             getFirstConsonantInternal: (w) => {
                 for (let i = 1; i < w.length; i++) {
-                    if (Engine.isConsonant(w[i])) return w[i] === 'Ñ' ? 'X' : w[i];
+                    if (Engine.isConsonant(w[i])) return w[i];
                 }
                 return "X";
             },
